@@ -1,0 +1,5 @@
+# Normalize line endings
+* text=auto
+
+# Never diff these
+*.env diff=nodiff
