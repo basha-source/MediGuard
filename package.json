@@ -2,7 +2,7 @@
   "name": "mediguard",
   "private": true,
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "turbo dev --ui=tui",
     "build": "turbo build",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
