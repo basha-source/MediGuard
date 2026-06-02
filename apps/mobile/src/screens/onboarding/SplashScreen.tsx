@@ -1,5 +1,6 @@
 import { useEffect }             from "react";
 import { View, Text, StyleSheet } from "react-native";
+import AsyncStorage               from "@react-native-async-storage/async-storage";
 import { useNavigation }          from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { AuthStackParams }   from "@/navigation/AuthStack";
@@ -11,7 +12,10 @@ export function SplashScreen() {
   const nav = useNavigation<Nav>();
 
   useEffect(() => {
-    const t = setTimeout(() => nav.replace("Onboarding1"), 2200);
+    const t = setTimeout(async () => {
+      const seen = await AsyncStorage.getItem("onboardingSeen");
+      nav.replace(seen ? "Login" : "Onboarding1");
+    }, 2200);
     return () => clearTimeout(t);
   }, []);
 

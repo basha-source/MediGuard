@@ -49,6 +49,15 @@ config.resolver.unstable_conditionNames = ["require", "react-native"];
 // context) AND realpath the result (so any remaining symlink ambiguity
 // collapses to a single canonical file path — Metro keys modules by path).
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // expo is hoisted to monorepo root — AppEntry.js does `../../App` which
+  // lands at the monorepo root instead of apps/mobile/. Redirect it here.
+  if (
+    moduleName === "../../App" &&
+    context.originModulePath.replace(/\\/g, "/").includes("/expo/AppEntry.js")
+  ) {
+    return { filePath: path.resolve(projectRoot, "App.tsx"), type: "sourceFile" };
+  }
+
   const isFirebase =
     moduleName === "firebase" ||
     moduleName.startsWith("firebase/") ||

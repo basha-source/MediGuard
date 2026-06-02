@@ -19,6 +19,12 @@ const app = getApps().length === 0
     })
   : getApp();
 
-initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
-});
+// initializeAuth must only be called once per app.
+// Guard against hot-reload / fast-refresh re-evaluation of this module.
+try {
+  initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+} catch {
+  // Auth already initialized — getAuth(app) in @mediguard/firebase returns the existing instance.
+}

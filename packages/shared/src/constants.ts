@@ -29,6 +29,7 @@ export const FIRESTORE = {
   CG_LINKS:      "careGuardianLinks",
   NOTIFICATIONS: "notifications",
   CHAT_HISTORY:  "chatHistory",
+  WELLNESS_LOGS: "wellnessLogs",
 } as const;
 
 export const STORAGE_PATHS = {

@@ -1,8 +1,8 @@
 import { NavigationContainer }  from "@react-navigation/native";
 import { View, ActivityIndicator } from "react-native";
 import { AuthStack }           from "./AuthStack";
-import { PatientTabs }         from "./PatientTabs";
-import { CareGuardianTabs }    from "./CareGuardianTabs";
+import { PatientDrawer }       from "./PatientDrawer";
+import { CareGuardianDrawer }  from "./CareGuardianDrawer";
 import { useAuthStore }        from "@/store/authStore";
 import { useAuth }             from "@/hooks/useAuth";
 import { Colors }              from "@mediguard/shared";
@@ -24,8 +24,8 @@ export function RootNavigator() {
       {!user
         ? <AuthStack />
         : user.role === "careGuardian"
-        ? <CareGuardianTabs />
-        : <PatientTabs />
+        ? <CareGuardianDrawer />
+        : <PatientDrawer />
       }
     </NavigationContainer>
   );

@@ -5,6 +5,7 @@ import { getFirebaseAuth, getDb } from "@mediguard/firebase";
 import { FIRESTORE } from "@mediguard/shared";
 import type { User } from "@mediguard/shared";
 import { useAuthStore } from "@/store/authStore";
+import { registerForPushNotifications, saveFcmToken } from "@/services/notifications";
 
 export function useAuth() {
   const { setUser, setFirebaseUid, setLoading } = useAuthStore();
@@ -25,6 +26,11 @@ export function useAuth() {
         // Firestore unavailable — stay unauthenticated in app state
       }
       setLoading(false);
+      registerForPushNotifications()
+        .then((token) => {
+          if (token) saveFcmToken(fbUser.uid, token);
+        })
+        .catch(() => {});
     });
     return unsub;
   }, []);

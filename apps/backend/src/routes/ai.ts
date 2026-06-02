@@ -9,17 +9,19 @@ aiRoutes.post("/ask", async (req, res) => {
   if (!question) { res.status(400).json({ error: "question required" }); return; }
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${ENV.GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${ENV.GEMINI_API_KEY}`;
     const { data } = await axios.post(url, {
       contents: [{
         parts: [{
           text: `You are MediGuard AI. Answer briefly and safely. Always advise consulting a doctor.\n\nQuestion: ${question}`,
         }],
       }],
-    });
+    }, { timeout: 15_000 });
     const answer = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "Unable to respond.";
     res.json({ answer });
-  } catch {
-    res.status(500).json({ error: "AI service temporarily unavailable" });
+  } catch (err: any) {
+    const geminiError = err?.response?.data ?? err?.message ?? "unknown";
+    console.error("[AI] Gemini error:", JSON.stringify(geminiError, null, 2));
+    res.status(500).json({ error: "AI service temporarily unavailable", detail: geminiError });
   }
 });

@@ -2,6 +2,7 @@
   "expo": {
     "name": "MediGuard",
     "slug": "mediguard",
+    "scheme": "mediguard",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -42,7 +43,8 @@
         }
       ],
       "expo-local-authentication",
-      "expo-localization"
+      "expo-localization",
+      "expo-web-browser"
     ]
   }
 }

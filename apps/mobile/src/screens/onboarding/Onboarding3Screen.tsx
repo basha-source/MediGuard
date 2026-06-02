@@ -1,4 +1,6 @@
+import { useCallback }            from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import AsyncStorage               from "@react-native-async-storage/async-storage";
 import { useNavigation }          from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { AuthStackParams }   from "@/navigation/AuthStack";
@@ -8,6 +10,12 @@ type Nav = StackNavigationProp<AuthStackParams, "Onboarding3">;
 
 export function Onboarding3Screen() {
   const nav = useNavigation<Nav>();
+
+  const handleGetStarted = useCallback(async () => {
+    await AsyncStorage.setItem("onboardingSeen", "true");
+    nav.navigate("Login");
+  }, [nav]);
+
   return (
     <View style={s.root}>
       <View style={s.skipRow} />
@@ -25,7 +33,7 @@ export function Onboarding3Screen() {
           <View style={s.dot} />
           <View style={[s.dot, s.dotActive]} />
         </View>
-        <TouchableOpacity style={s.btn} onPress={() => nav.navigate("Login")}>
+        <TouchableOpacity style={s.btn} onPress={handleGetStarted}>
           <Text style={s.btnTxt}>Get Started</Text>
         </TouchableOpacity>
       </View>

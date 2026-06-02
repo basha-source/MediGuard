@@ -12,6 +12,7 @@ export type User = {
   conditions?: string[];
   emergencyContact?: string;
   careGuardianCode?: string;
+  profilePhotoURL?: string;
   createdAt: string;
 };
 
@@ -99,4 +100,16 @@ export type Notification = {
   type: "dose" | "expiry" | "refill" | "sos" | "careGuardian";
   read: boolean;
   createdAt: string;
+};
+
+export type WellnessLog = {
+  id: string;
+  userId: string;
+  date: string;          // YYYY-MM-DD, local timezone, one log per user per date
+  mood: number;          // 1..5  (1 = very bad, 5 = very good)
+  energy: number;        // 1..5
+  pain: number;          // 0..10 (0 = none, 10 = severe)
+  sleepHours: number;    // 0..24, may be fractional (e.g. 7.5)
+  notes: string;         // "" if blank
+  createdAt: string;     // ISO datetime
 };
