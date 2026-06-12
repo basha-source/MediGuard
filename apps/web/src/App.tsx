@@ -32,8 +32,11 @@ import { TravelModePage }       from "@/pages/patient/TravelModePage";
 import { EmergencySOSPage }     from "@/pages/patient/EmergencySOSPage";
 import { DisposalGuidePage }    from "@/pages/patient/DisposalGuidePage";
 import { NotificationPrefsPage } from "@/pages/patient/NotificationPrefsPage";
-import { DoctorReportPage }     from "@/pages/patient/DoctorReportPage";
-import { ExportDataPage }       from "@/pages/patient/ExportDataPage";
+import { DoctorReportPage }       from "@/pages/patient/DoctorReportPage";
+import { ExportDataPage }         from "@/pages/patient/ExportDataPage";
+import { DailyLogPage }           from "@/pages/patient/DailyLogPage";
+import { WellnessProgressPage }   from "@/pages/patient/WellnessProgressPage";
+import { MissedDoseInsightsPage } from "@/pages/patient/MissedDoseInsightsPage";
 
 // Care Guardian
 import { CGDashboardPage }      from "@/pages/careGuardian/CGDashboardPage";
@@ -104,8 +107,11 @@ function AppRoutes() {
             <Route path="/emergency-sos"     element={<EmergencySOSPage />} />
             <Route path="/disposal-guide"    element={<DisposalGuidePage />} />
             <Route path="/notifications"     element={<NotificationPrefsPage />} />
-            <Route path="/doctor-report"     element={<DoctorReportPage />} />
-            <Route path="/export"            element={<ExportDataPage />} />
+            <Route path="/doctor-report"       element={<DoctorReportPage />} />
+            <Route path="/export"              element={<ExportDataPage />} />
+            <Route path="/wellness-log"        element={<DailyLogPage />} />
+            <Route path="/wellness-progress"   element={<WellnessProgressPage />} />
+            <Route path="/missed-dose-insights" element={<MissedDoseInsightsPage />} />
           </>
         )}
 

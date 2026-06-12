@@ -97,9 +97,14 @@ export type Notification = {
   userId: string;
   title: string;
   body: string;
-  type: "dose" | "expiry" | "refill" | "sos" | "careGuardian";
+  type: "dose" | "expiry" | "refill" | "sos" | "careGuardian" | "wellness";
   read: boolean;
   createdAt: string;
+  data?: {
+    screen?: string;
+    medicineId?: string;
+    medicineName?: string;
+  };
 };
 
 export type WellnessLog = {

@@ -1,31 +1,56 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { db } from "@/config/firebaseServices";
+import { FIRESTORE } from "@mediguard/shared";
+import { useAuthStore } from "@/store/authStore";
 
 type Pref = { key: string; label: string; desc: string; defaultOn: boolean };
 
 const PREFS: Pref[] = [
-  { key: "doseReminders",   label: "Dose Reminders",        desc: "Get reminded before each scheduled dose",           defaultOn: true  },
-  { key: "missedDoseAlert", label: "Missed Dose Alerts",    desc: "Notify when a dose is not taken after schedule",    defaultOn: true  },
-  { key: "expiryAlert30",   label: "Expiry Alert (30 days)", desc: "Warn when a medicine expires within 30 days",      defaultOn: true  },
-  { key: "expiryAlert7",    label: "Expiry Alert (7 days)",  desc: "Urgent alert when a medicine expires within 7 days", defaultOn: true },
-  { key: "lowStockAlert",   label: "Low Stock Alert",        desc: "Notify when medicine quantity falls below 5",      defaultOn: true  },
-  { key: "careGuardianAlerts", label: "Care Guardian Alerts", desc: "Receive alerts from your linked Care Guardian",  defaultOn: false },
-  { key: "weeklyReport",    label: "Weekly Report",          desc: "Get a weekly adherence summary",                   defaultOn: false },
+  { key: "doseReminders",      label: "Dose Reminders",          desc: "Get reminded before each scheduled dose",             defaultOn: true  },
+  { key: "missedDoseAlert",    label: "Missed Dose Alerts",      desc: "Notify when a dose is not taken after schedule",      defaultOn: true  },
+  { key: "expiryAlert30",      label: "Expiry Alert (30 days)",  desc: "Warn when a medicine expires within 30 days",         defaultOn: true  },
+  { key: "expiryAlert7",       label: "Expiry Alert (7 days)",   desc: "Urgent alert when a medicine expires within 7 days",  defaultOn: true  },
+  { key: "lowStockAlert",      label: "Low Stock Alert",         desc: "Notify when medicine quantity falls below 5",         defaultOn: true  },
+  { key: "careGuardianAlerts", label: "Care Guardian Alerts",    desc: "Receive alerts from your linked Care Guardian",       defaultOn: false },
+  { key: "weeklyReport",       label: "Weekly Report",           desc: "Get a weekly adherence summary",                      defaultOn: false },
 ];
 
+const DEFAULT_PREFS = Object.fromEntries(PREFS.map((p) => [p.key, p.defaultOn]));
+
 export function NotificationPrefsPage() {
-  const [prefs, setPrefs] = useState<Record<string, boolean>>(
-    Object.fromEntries(PREFS.map((p) => [p.key, p.defaultOn]))
-  );
-  const [saved, setSaved] = useState(false);
+  const user = useAuthStore((s) => s.user);
+  const [prefs,   setPrefs]   = useState<Record<string, boolean>>(DEFAULT_PREFS);
+  const [loading, setLoading] = useState(true);
+  const [saved,   setSaved]   = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    getDoc(doc(db(), FIRESTORE.USERS, user.id)).then((snap) => {
+      if (snap.exists()) {
+        const stored = (snap.data().notificationPrefs as Record<string, boolean>) ?? {};
+        setPrefs({ ...DEFAULT_PREFS, ...stored });
+      }
+    }).finally(() => setLoading(false));
+  }, [user?.id]);
 
   function toggle(key: string) {
     setPrefs((p) => ({ ...p, [key]: !p[key] }));
   }
 
-  function handleSave() {
-    // In a real app, persist to Firestore
+  async function handleSave() {
+    if (!user?.id) return;
+    await updateDoc(doc(db(), FIRESTORE.USERS, user.id), { notificationPrefs: prefs });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto flex justify-center items-center min-h-40">
+        <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
   }
 
   return (

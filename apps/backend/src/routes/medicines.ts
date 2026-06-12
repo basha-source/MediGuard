@@ -88,28 +88,41 @@ Make your best guess for category based on the packaging. Never return null for 
     prompt = `Read this prescription image and list all medicines. Return ONLY valid JSON with no markdown: {"medicines": [{"name": "...", "dosage": "...", "category": "tablet|capsule|liquid|injection|other"}]}. Return empty array if nothing detected.`;
   }
 
-  try {
-    const url = `${API.GEMINI_BASE}/models/gemini-flash-latest:generateContent?key=${ENV.GEMINI_API_KEY}`;
-    const { data } = await axios.post(url, {
-      contents: [{
-        parts: [
-          { inline_data: { mime_type: "image/jpeg", data: image } },
-          { text: prompt },
-        ],
-      }],
-    }, { timeout: 30000 });
+  const MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-8b", "gemini-1.5-flash"];
+  const payload = {
+    contents: [{
+      parts: [
+        { inline_data: { mime_type: "image/jpeg", data: image } },
+        { text: prompt },
+      ],
+    }],
+  };
 
-    let raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    console.log("[OCR] Gemini raw response:", raw);
-    raw = raw.replace(/```(?:json)?/g, "").replace(/```/g, "").trim();
-    const parsed = JSON.parse(raw);
-    res.json(parsed);
-  } catch (err: any) {
-    const detail = err?.response?.data?.error?.message ?? err?.message ?? "unknown";
-    console.error("[OCR] failed:", detail);
-    if (err?.response?.data) {
-      console.error("[OCR] full Gemini response:", JSON.stringify(err.response.data));
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  for (let m = 0; m < MODELS.length; m++) {
+    const model = MODELS[m];
+    const url = `${API.GEMINI_BASE}/models/${model}:generateContent?key=${ENV.GEMINI_API_KEY}`;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { data } = await axios.post(url, payload, { timeout: 30000 });
+        let raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+        console.log(`[OCR] ${model} attempt ${attempt + 1} succeeded`);
+        raw = raw.replace(/```(?:json)?/g, "").replace(/```/g, "").trim();
+        const parsed = JSON.parse(raw);
+        res.json(parsed);
+        return;
+      } catch (err: any) {
+        const status = err?.response?.status;
+        const detail = err?.response?.data?.error?.message ?? err?.message ?? "unknown";
+        console.error(`[OCR] ${model} attempt ${attempt + 1} failed (${status}): ${detail}`);
+        const isRetryable = status === 503 || status === 429 ||
+          (typeof detail === "string" && (detail.includes("high demand") || detail.includes("overloaded")));
+        if (!isRetryable || attempt === 2) break;
+        await sleep(2000 * Math.pow(2, attempt)); // 2s, 4s
+      }
     }
-    res.status(500).json({ error: "OCR failed", detail });
   }
+
+  res.status(503).json({ error: "OCR failed", detail: "AI service is busy. Please try again in a moment." });
 });

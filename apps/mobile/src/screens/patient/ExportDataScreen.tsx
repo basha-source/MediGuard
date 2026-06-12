@@ -17,8 +17,6 @@ import {
   query,
   where,
   getDocs,
-  orderBy,
-  limit,
 } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { getDb, getFirebaseStorage } from "@mediguard/firebase";
@@ -244,11 +242,11 @@ export function ExportDataScreen() {
     setGenerating(true);
     try {
       const [medsSnap, vitalsSnap, dosesSnap, vaccsSnap, effectsSnap] = await Promise.all([
-        getDocs(query(collection(getDb(), FIRESTORE.MEDICINES),   where("userId", "==", user.id))),
-        getDocs(query(collection(getDb(), FIRESTORE.VITALS),      where("userId", "==", user.id), orderBy("recordedAt", "desc"), limit(20))),
-        getDocs(query(collection(getDb(), FIRESTORE.DOSE_LOGS),   where("userId", "==", user.id), where("date", ">=", thirtyDaysAgo))),
-        getDocs(query(collection(getDb(), FIRESTORE.VACCINATIONS),where("userId", "==", user.id))),
-        getDocs(query(collection(getDb(), FIRESTORE.SIDE_EFFECTS),where("userId", "==", user.id), orderBy("recordedAt", "desc"), limit(20))),
+        getDocs(query(collection(getDb(), FIRESTORE.MEDICINES),    where("userId", "==", user.id))),
+        getDocs(query(collection(getDb(), FIRESTORE.VITALS),       where("userId", "==", user.id))),
+        getDocs(query(collection(getDb(), FIRESTORE.DOSE_LOGS),    where("userId", "==", user.id), where("date", ">=", thirtyDaysAgo))),
+        getDocs(query(collection(getDb(), FIRESTORE.VACCINATIONS), where("userId", "==", user.id))),
+        getDocs(query(collection(getDb(), FIRESTORE.SIDE_EFFECTS), where("userId", "==", user.id))),
       ]);
 
       const meds: MedRow[] = medsSnap.docs.map((d) => {
@@ -256,10 +254,10 @@ export function ExportDataScreen() {
         return { name: x.name, dosage: x.dosage, form: x.form, expiryDate: x.expiryDate, stock: x.stock };
       });
 
-      const vitals: VitalRow[] = vitalsSnap.docs.map((d) => {
-        const x = d.data();
-        return { type: x.type, value: x.value, recordedAt: x.recordedAt };
-      });
+      const vitals: VitalRow[] = vitalsSnap.docs
+        .map((d) => { const x = d.data(); return { type: x.type, value: x.value, recordedAt: x.recordedAt }; })
+        .sort((a, b) => (b.recordedAt ?? "").localeCompare(a.recordedAt ?? ""))
+        .slice(0, 20);
 
       const doses: DoseRow[] = dosesSnap.docs.map((d) => {
         const x = d.data();
@@ -271,10 +269,10 @@ export function ExportDataScreen() {
         return { name: x.name, vaccinatedDate: x.vaccinatedDate, validUntil: x.validUntil };
       });
 
-      const effects: SEffectRow[] = effectsSnap.docs.map((d) => {
-        const x = d.data();
-        return { medicineName: x.medicineName, symptom: x.symptom, severity: x.severity, recordedAt: x.recordedAt };
-      });
+      const effects: SEffectRow[] = effectsSnap.docs
+        .map((d) => { const x = d.data(); return { medicineName: x.medicineName, symptom: x.symptom, severity: x.severity, recordedAt: x.recordedAt }; })
+        .sort((a, b) => (b.recordedAt ?? "").localeCompare(a.recordedAt ?? ""))
+        .slice(0, 20);
 
       const html = buildHtml(user, meds, vitals, doses, vaccs, effects);
       const result = await Print.printToFileAsync({ html, base64: false });
@@ -293,7 +291,8 @@ export function ExportDataScreen() {
         dialogTitle: "Share MediGuard Health Report",
         UTI: "com.adobe.pdf",
       });
-    } catch {
+    } catch (err: any) {
+      console.error("[ExportPDF] error:", err?.message ?? err);
       Alert.alert("Error", "Could not generate the PDF. Please try again.");
     } finally {
       setGenerating(false);

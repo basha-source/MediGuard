@@ -12,7 +12,6 @@ const PATIENT_NAV: { section: string; items: NavItem[] }[] = [
       { icon: "⊞", label: "Dashboard",    to: "/" },
       { icon: "💊", label: "Inventory",    to: "/inventory" },
       { icon: "📋", label: "Dose Tracker", to: "/doses" },
-      { icon: "👤", label: "Profile",      to: "/profile" },
     ],
   },
   {
@@ -22,6 +21,9 @@ const PATIENT_NAV: { section: string; items: NavItem[] }[] = [
       { icon: "📊", label: "Adherence",           to: "/adherence" },
       { icon: "💉", label: "Vaccination",         to: "/vaccination" },
       { icon: "⏰", label: "Missed Doses",        to: "/missed-doses" },
+      { icon: "🔍", label: "Dose Insights",       to: "/missed-dose-insights" },
+      { icon: "🧘", label: "Wellness Log",        to: "/wellness-log" },
+      { icon: "📈", label: "Wellness Progress",   to: "/wellness-progress" },
     ],
   },
   {
@@ -37,9 +39,9 @@ const PATIENT_NAV: { section: string; items: NavItem[] }[] = [
   {
     section: "Tools & Services",
     items: [
-      { icon: "🤖", label: "AI Assistant",         to: "/ai-assistant" },
-      { icon: "📄", label: "Prescriptions",        to: "/prescriptions" },
-      { icon: "🗺️",  label: "Pharmacy Map",        to: "/pharmacy-map" },
+      { icon: "🤖", label: "AI Assistant",  to: "/ai-assistant" },
+      { icon: "📄", label: "Prescriptions", to: "/prescriptions" },
+      { icon: "🗺️",  label: "Pharmacy Map", to: "/pharmacy-map" },
     ],
   },
   {
@@ -74,7 +76,6 @@ const CG_NAV: { section: string; items: NavItem[] }[] = [
       { icon: "⊞", label: "Dashboard",       to: "/cg" },
       { icon: "👁️",  label: "Patient Monitor", to: "/cg/monitor" },
       { icon: "🔔", label: "Alerts",          to: "/cg/alerts" },
-      { icon: "👤", label: "Profile",         to: "/profile" },
     ],
   },
 ];
@@ -83,7 +84,10 @@ export function Sidebar() {
   const { user } = useAuthStore();
   const navigate  = useNavigate();
   const nav       = user?.role === "careGuardian" ? CG_NAV : PATIENT_NAV;
-  const initials  = (user?.name ?? user?.email ?? "U").slice(0, 2).toUpperCase();
+
+  const initials = user?.name
+    ? user.name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2)
+    : (user?.email ?? "U").slice(0, 2).toUpperCase();
 
   async function handleLogout() {
     await signOut(auth());
@@ -100,16 +104,27 @@ export function Sidebar() {
         </p>
       </div>
 
-      {/* User strip */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-green-dark">
-        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold shrink-0">
-          {initials}
+      {/* User strip — clickable, navigates to /profile */}
+      <button
+        onClick={() => navigate("/profile")}
+        className="flex items-center gap-3 px-4 py-3 bg-green-dark hover:bg-black/20 transition-colors text-left w-full"
+      >
+        {/* Avatar: photo or initials */}
+        <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border-2 border-white/30">
+          {user?.profilePhotoURL ? (
+            <img src={user.profilePhotoURL} alt="Profile" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-white/20 flex items-center justify-center text-xs font-bold">
+              {initials}
+            </div>
+          )}
         </div>
-        <div className="overflow-hidden">
+        <div className="overflow-hidden flex-1">
           <p className="text-sm font-semibold truncate">{user?.name ?? "User"}</p>
           <p className="text-[11px] opacity-70 truncate">{user?.email}</p>
         </div>
-      </div>
+        <span className="text-white/50 text-xs shrink-0">›</span>
+      </button>
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto scrollbar-thin py-2">

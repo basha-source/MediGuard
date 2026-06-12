@@ -23,10 +23,11 @@ export function ScannerScreen() {
   const [mode, setMode]       = useState<Mode>("barcode");
   const switchToPackaging     = useCallback(() => { setMode("packaging"); setState({ status: "idle" }); }, []);
   const [state, setState]     = useState<ScanState>({ status: "idle" });
+  const [ocrRetrying, setOcrRetrying] = useState(false);
   const cameraRef             = useRef<CameraView>(null);
   const navigation            = useNavigation<any>();
 
-  const reset = useCallback(() => setState({ status: "idle" }), []);
+  const reset = useCallback(() => { setState({ status: "idle" }); setOcrRetrying(false); }, []);
 
   const handleBarcodeScanned = useCallback(
     async ({ data }: { type: string; data: string }) => {
@@ -62,22 +63,44 @@ export function ScannerScreen() {
     if (state.status !== "idle") return;
     setState({ status: "loading" });
     try {
-      const photo = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.4 });
+      const photo = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.3, imageType: "jpg" });
       if (!photo?.base64) { setState({ status: "error", message: "Camera capture failed." }); return; }
       console.log(`[Scanner] photo captured, base64 length: ${photo.base64.length}`);
       console.log(`[Scanner] sending to: ${ENV.BACKEND_URL}/api/medicines/ocr`);
 
-      const res = await fetch(`${ENV.BACKEND_URL}/api/medicines/ocr`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ image: photo.base64, mode: "packaging" }),
-      });
+      // Show "retrying" hint after 8 s so the user knows it's working
+      const retryHintTimer = setTimeout(() => setOcrRetrying(true), 8000);
+      let res: Response;
+      try {
+        const controller = new AbortController();
+        const fetchTimeout = setTimeout(() => controller.abort(), 60000);
+        res = await fetch(`${ENV.BACKEND_URL}/api/medicines/ocr`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ image: photo.base64, mode: "packaging" }),
+          signal:  controller.signal,
+        });
+        clearTimeout(fetchTimeout);
+      } finally {
+        clearTimeout(retryHintTimer);
+        setOcrRetrying(false);
+      }
       console.log(`[Scanner] response status: ${res.status}`);
 
       if (!res.ok) {
         const errBody = await res.text();
         console.log(`[Scanner] error body: ${errBody}`);
-        setState({ status: "error", message: `Server error (${res.status}): ${errBody.slice(0, 100)}` });
+        let friendlyMsg = "Something went wrong. Please try again.";
+        try {
+          const parsed = JSON.parse(errBody);
+          const detail = parsed?.detail ?? parsed?.error ?? "";
+          if (typeof detail === "string" && (detail.includes("busy") || detail.includes("high demand") || res.status === 503 || res.status === 429)) {
+            friendlyMsg = "The AI service is currently busy. Please wait a moment and retry.";
+          } else if (typeof detail === "string" && detail.length > 0) {
+            friendlyMsg = detail.length > 120 ? detail.slice(0, 120) + "…" : detail;
+          }
+        } catch { /* raw text fallback */ }
+        setState({ status: "error", message: friendlyMsg });
         return;
       }
       const data = await res.json() as {
@@ -101,7 +124,10 @@ export function ScannerScreen() {
       }
     } catch (err: any) {
       console.log(`[Scanner] fetch threw: ${err?.message ?? err}`);
-      setState({ status: "error", message: `Network: ${err?.message ?? "unknown"}` });
+      const msg = err?.name === "AbortError"
+        ? "Request timed out. The AI service is overloaded — please try again."
+        : `Network error: ${err?.message ?? "unknown"}`;
+      setState({ status: "error", message: msg });
     }
   }, [state.status, navigation]);
 
@@ -202,8 +228,15 @@ export function ScannerScreen() {
           <View style={s.loadingOverlay}>
             <ActivityIndicator size="large" color={Colors.white} />
             <Text style={s.loadingText}>
-              {mode === "barcode" ? "Looking up medicine…" : "Reading medicine box…"}
+              {mode === "barcode"
+                ? "Looking up medicine…"
+                : ocrRetrying
+                  ? "AI is busy — trying backup models…"
+                  : "Reading medicine box…"}
             </Text>
+            {ocrRetrying && (
+              <Text style={s.loadingSubText}>This may take up to 30 seconds</Text>
+            )}
           </View>
         )}
 
@@ -312,6 +345,7 @@ const s = StyleSheet.create({
   shutterInner:  { width: 54, height: 54, borderRadius: 27, backgroundColor: Colors.white },
   loadingOverlay:{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.65)", alignItems: "center", justifyContent: "center", gap: 16 },
   loadingText:   { color: Colors.white, fontSize: 15, fontWeight: "500" },
+  loadingSubText:{ color: "rgba(255,255,255,0.65)", fontSize: 12, marginTop: 4 },
   resultPanel:   { ...StyleSheet.absoluteFillObject, backgroundColor: Colors.bg, alignItems: "center", justifyContent: "center", padding: 32 },
   resultTitle:   { fontSize: 18, fontWeight: "700", color: Colors.textPrimary, marginBottom: 8, textAlign: "center" },
   resultSubtitle:{ fontSize: 14, color: Colors.textSecondary, textAlign: "center", marginBottom: 24, lineHeight: 20 },

@@ -19,12 +19,27 @@ if (!IS_EXPO_GO) {
       handleNotification: async () => ({
         shouldShowAlert: true,
         shouldPlaySound: true,
-        shouldSetBadge:  false,
+        shouldSetBadge:  true,
       }),
     });
+    // Register action categories so "Mark as Taken" button appears on dose alerts
+    setupNotificationCategories().catch(() => {});
   } catch {
     Notifications = null;
   }
+}
+
+export async function setupNotificationCategories(): Promise<void> {
+  if (!Notifications) return;
+  try {
+    await Notifications.setNotificationCategoryAsync("DOSE_ACTIONS", [
+      {
+        identifier: "MARK_TAKEN",
+        buttonTitle: "✅ Mark as Taken",
+        options: { opensAppToForeground: true },
+      },
+    ]);
+  } catch { /* silently skip */ }
 }
 
 export async function registerForPushNotifications() {
@@ -39,7 +54,11 @@ export async function registerForPushNotifications() {
   }
 }
 
-export async function scheduleDoseReminder(medicineName: string, scheduledTime: Date) {
+export async function scheduleDoseReminder(
+  medicineName: string,
+  scheduledTime: Date,
+  medicineId?: string,
+) {
   if (!Notifications) return;
   try {
     await Notifications.scheduleNotificationAsync({
@@ -47,6 +66,13 @@ export async function scheduleDoseReminder(medicineName: string, scheduledTime: 
         title: "💊 Dose Reminder",
         body:  `Time to take ${medicineName}`,
         sound: true,
+        data: {
+          type:         "dose",
+          screen:       "MissedDose",
+          medicineId:   medicineId ?? "",
+          medicineName,
+        },
+        categoryIdentifier: "DOSE_ACTIONS",
       },
       trigger: {
         hour:    scheduledTime.getHours(),
@@ -65,6 +91,7 @@ export async function scheduleExpiryAlert(medicineName: string, daysLeft: number
         title: "⚠️ Expiry Alert",
         body:  `${medicineName} expires in ${daysLeft} day${daysLeft > 1 ? "s" : ""}`,
         sound: true,
+        data:  { type: "expiry", screen: "ExpiryAlerts" },
       },
       trigger: { seconds: 60 },
     });
@@ -83,7 +110,13 @@ export async function scheduleSnoozeReminder(medicineName: string, seconds = 180
   if (!Notifications) return;
   try {
     await Notifications.scheduleNotificationAsync({
-      content: { title: "💊 Dose Reminder", body: `Take ${medicineName} now`, sound: true },
+      content: {
+        title: "💊 Dose Reminder",
+        body:  `Take ${medicineName} now`,
+        sound: true,
+        data:  { type: "dose", screen: "MissedDose" },
+        categoryIdentifier: "DOSE_ACTIONS",
+      },
       trigger: { seconds },
     });
   } catch { /* silently skip */ }
@@ -97,6 +130,7 @@ export async function scheduleLowStockAlert(medicineName: string) {
         title: "📦 Low Stock Alert",
         body:  `${medicineName} is running low. Time to reorder.`,
         sound: true,
+        data:  { type: "refill", screen: "ExpiryAlerts" },
       },
       trigger: { seconds: 5 },
     });
@@ -107,7 +141,8 @@ export async function addInAppNotification(
   userId: string,
   title: string,
   body: string,
-  type: "dose" | "expiry" | "refill" | "sos" | "careGuardian",
+  type: "dose" | "expiry" | "refill" | "sos" | "careGuardian" | "wellness",
+  data?: { screen?: string; medicineId?: string; medicineName?: string },
 ) {
   try {
     await addDoc(collection(getDb(), FIRESTORE.NOTIFICATIONS), {
@@ -117,10 +152,33 @@ export async function addInAppNotification(
       type,
       read:      false,
       createdAt: new Date().toISOString(),
+      ...(data ? { data } : {}),
     });
   } catch {
     // non-critical
   }
+}
+
+// ── Expiry alert deduplication ────────────────────────────────────────────────
+// Stores { [medicineId]: "YYYY-MM-DD" } so we fire at most once per day per medicine.
+const EXPIRY_NOTIF_KEY = "expiryNotifSent";
+
+async function hasRecentExpiryNotif(medicineId: string): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(EXPIRY_NOTIF_KEY);
+    const map: Record<string, string> = raw ? JSON.parse(raw) : {};
+    const today = new Date().toISOString().split("T")[0];
+    return map[medicineId] === today;
+  } catch { return false; }
+}
+
+async function markExpiryNotifSent(medicineId: string): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(EXPIRY_NOTIF_KEY);
+    const map: Record<string, string> = raw ? JSON.parse(raw) : {};
+    map[medicineId] = new Date().toISOString().split("T")[0];
+    await AsyncStorage.setItem(EXPIRY_NOTIF_KEY, JSON.stringify(map));
+  } catch { /* silently skip */ }
 }
 
 export async function checkAndScheduleExpiryAlerts(
@@ -132,13 +190,16 @@ export async function checkAndScheduleExpiryAlerts(
     if (!med.expiryDate) continue;
     const daysLeft = Math.floor((new Date(med.expiryDate).getTime() - now) / 86_400_000);
     if (daysLeft >= 0 && daysLeft <= 7) {
+      if (await hasRecentExpiryNotif(med.id)) continue; // already sent today
       await scheduleExpiryAlert(med.name, daysLeft).catch(() => {});
       await addInAppNotification(
         userId,
         "⚠️ Expiry Alert",
         `${med.name} expires ${daysLeft === 0 ? "today" : `in ${daysLeft} day${daysLeft > 1 ? "s" : ""}`}`,
         "expiry",
+        { screen: "ExpiryAlerts", medicineId: med.id, medicineName: med.name },
       ).catch(() => {});
+      await markExpiryNotifSent(med.id);
     }
   }
 }
@@ -147,17 +208,8 @@ export async function checkAndScheduleExpiryAlerts(
 const WELLNESS_REMINDER_ID_KEY   = "wellnessReminderNotifId";
 const WELLNESS_REMINDER_TIME_KEY = "wellnessReminderTime"; // stored as "HH:MM"
 
-/**
- * Cancels any previously-scheduled wellness reminder, then schedules a NEW
- * repeating daily local notification at the given hour:minute.
- * Stores the new notification id and time in AsyncStorage.
- * No-op in Expo Go (matches existing pattern in this file).
- */
 export async function scheduleDailyWellnessReminder(hour: number, minute: number): Promise<void> {
   if (!Notifications) return;
-  // TODO: A background "check if already logged today" suppression would require
-  //       a background task (expo-task-manager) — out of scope for MVP. Foreground
-  //       handler may suppress when app is open and today's log exists.
   try {
     await cancelDailyWellnessReminder();
     const id = await Notifications.scheduleNotificationAsync({
@@ -165,6 +217,7 @@ export async function scheduleDailyWellnessReminder(hour: number, minute: number
         title: "💚 Daily Wellness Check-In",
         body:  "How are you feeling today? Take a moment to log your wellness.",
         sound: true,
+        data:  { type: "wellness", screen: "DailyLog" },
       },
       trigger: { hour, minute, repeats: true },
     });
@@ -175,9 +228,6 @@ export async function scheduleDailyWellnessReminder(hour: number, minute: number
   } catch { /* silently skip */ }
 }
 
-/**
- * Cancels the stored wellness reminder if any. Safe to call when none scheduled.
- */
 export async function cancelDailyWellnessReminder(): Promise<void> {
   if (!Notifications) return;
   try {
@@ -190,9 +240,6 @@ export async function cancelDailyWellnessReminder(): Promise<void> {
   } catch { /* silently skip */ }
 }
 
-/**
- * Returns the stored time (HH:MM) or null if no reminder set.
- */
 export async function getWellnessReminderTime(): Promise<{ hour: number; minute: number } | null> {
   try {
     const raw = await AsyncStorage.getItem(WELLNESS_REMINDER_TIME_KEY);

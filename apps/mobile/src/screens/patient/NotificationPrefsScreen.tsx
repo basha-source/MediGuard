@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
   ActivityIndicator, RefreshControl,
 } from "react-native";
 import {
   collection, query, where, orderBy, limit,
-  getDocs, updateDoc, doc, writeBatch,
+  getDocs, updateDoc, deleteDoc, doc, writeBatch,
 } from "firebase/firestore";
 import { getDb } from "@mediguard/firebase";
 import { Colors, FIRESTORE } from "@mediguard/shared";
@@ -32,6 +32,7 @@ const TYPE_EMOJI: Record<string, string> = {
   refill:       "📦",
   sos:          "🚨",
   careGuardian: "👤",
+  wellness:     "💚",
 };
 
 export function NotificationPrefsScreen() {
@@ -41,6 +42,10 @@ export function NotificationPrefsScreen() {
   const [items,      setItems]      = useState<Notification[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  // Clear all pending expiry timers on unmount
+  useEffect(() => () => { timersRef.current.forEach(clearTimeout); }, []);
 
   const unreadCount = items.filter((n) => !n.read).length;
 
@@ -69,14 +74,27 @@ export function NotificationPrefsScreen() {
     setRefreshing(false);
   }, [fetchNotifications]);
 
+  const scheduleRemoval = useCallback((ids: string[]) => {
+    const t = setTimeout(async () => {
+      setItems((prev) => prev.filter((n) => !ids.includes(n.id)));
+      try {
+        const batch = writeBatch(getDb());
+        ids.forEach((id) => batch.delete(doc(getDb(), FIRESTORE.NOTIFICATIONS, id)));
+        await batch.commit();
+      } catch {}
+    }, 30_000);
+    timersRef.current.push(t);
+  }, []);
+
   const markRead = useCallback(async (id: string) => {
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     try {
       await updateDoc(doc(getDb(), FIRESTORE.NOTIFICATIONS, id), { read: true });
+      scheduleRemoval([id]);
     } catch {
       setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: false } : n)));
     }
-  }, []);
+  }, [scheduleRemoval]);
 
   const markAllRead = useCallback(async () => {
     const unread = items.filter((n) => !n.read);
@@ -88,6 +106,7 @@ export function NotificationPrefsScreen() {
         batch.update(doc(getDb(), FIRESTORE.NOTIFICATIONS, n.id), { read: true })
       );
       await batch.commit();
+      scheduleRemoval(unread.map((n) => n.id));
     } catch {
       setItems((prev) =>
         prev.map((n) => {
@@ -96,12 +115,26 @@ export function NotificationPrefsScreen() {
         })
       );
     }
-  }, [items]);
+  }, [items, scheduleRemoval]);
+
+  const navigateForNotification = useCallback((item: Notification) => {
+    switch (item.type) {
+      case "dose":         nav.navigate("MissedDose" as any); break;
+      case "expiry":       nav.navigate("ExpiryAlerts" as any); break;
+      case "refill":       nav.navigate("ExpiryAlerts" as any); break;
+      case "wellness":     nav.navigate("DailyLog" as any); break;
+      case "sos":          nav.navigate("EmergencySOS" as any); break;
+      default: break;
+    }
+  }, [nav]);
 
   const renderItem = ({ item }: { item: Notification }) => (
     <TouchableOpacity
       style={[s.item, !item.read && s.itemUnread]}
-      onPress={() => { if (!item.read) markRead(item.id); }}
+      onPress={async () => {
+        if (!item.read) await markRead(item.id);
+        navigateForNotification(item);
+      }}
       activeOpacity={0.75}
     >
       <View style={s.dotCol}>

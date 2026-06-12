@@ -1,0 +1,99 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    function isAuth() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+    function isOwnerByField() {
+      return isAuth() && request.auth.uid == resource.data.userId;
+    }
+    function isOwnerByFieldIncoming() {
+      return isAuth() && request.auth.uid == request.resource.data.userId;
+    }
+
+    // ── Users ─────────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ── Medicines ─────────────────────────────────────────────────────────────
+    match /medicines/{docId} {
+      allow read: if isOwnerByField();
+      allow create: if isOwnerByFieldIncoming();
+      allow update, delete: if isOwnerByField();
+    }
+
+    // ── Dose Logs ─────────────────────────────────────────────────────────────
+    match /doseLogs/{docId} {
+      allow read: if isOwnerByField();
+      allow create: if isOwnerByFieldIncoming();
+      allow update, delete: if isOwnerByField();
+    }
+
+    // ── Vitals ────────────────────────────────────────────────────────────────
+    match /vitals/{docId} {
+      allow read: if isOwnerByField();
+      allow create: if isOwnerByFieldIncoming();
+      allow update, delete: if isOwnerByField();
+    }
+
+    // ── Vaccinations ──────────────────────────────────────────────────────────
+    match /vaccinations/{docId} {
+      allow read: if isOwnerByField();
+      allow create: if isOwnerByFieldIncoming();
+      allow update, delete: if isOwnerByField();
+    }
+
+    // ── Side Effects ──────────────────────────────────────────────────────────
+    match /sideEffects/{docId} {
+      allow read: if isOwnerByField();
+      allow create: if isOwnerByFieldIncoming();
+      allow update, delete: if isOwnerByField();
+    }
+
+    // ── Family Members ────────────────────────────────────────────────────────
+    match /familyMembers/{docId} {
+      allow read: if isOwnerByField();
+      allow create: if isOwnerByFieldIncoming();
+      allow update, delete: if isOwnerByField();
+    }
+
+    // ── Care Guardian Links ───────────────────────────────────────────────────
+    match /careGuardianLinks/{docId} {
+      allow read: if isAuth() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.careGuardianId == request.auth.uid
+      );
+      allow create: if isOwnerByFieldIncoming();
+      allow update, delete: if isOwnerByField();
+    }
+
+    // ── Notifications ─────────────────────────────────────────────────────────
+    match /notifications/{docId} {
+      allow read: if isOwnerByField();
+      allow create: if isOwnerByFieldIncoming();
+      allow update, delete: if isOwnerByField();
+    }
+
+    // ── Chat History ──────────────────────────────────────────────────────────
+    match /chatHistory/{docId} {
+      allow read: if isOwnerByField();
+      allow create: if isOwnerByFieldIncoming();
+      allow update, delete: if isOwnerByField();
+    }
+
+    // ── Wellness Logs ─────────────────────────────────────────────────────────
+    // Doc ID is `{userId}_{date}`; each doc has a userId field.
+    match /wellnessLogs/{docId} {
+      allow read: if isOwnerByField();
+      allow create: if isOwnerByFieldIncoming();
+      allow update, delete: if isOwnerByField();
+    }
+  }
+}
