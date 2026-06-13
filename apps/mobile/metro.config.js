@@ -7,8 +7,12 @@ const monorepoRoot = path.resolve(projectRoot, "../..");
 
 const config = getDefaultConfig(projectRoot);
 
-// Let Metro watch the entire monorepo so workspace packages resolve correctly
-config.watchFolders = [monorepoRoot];
+// Spread Expo's default watchFolders so we don't drop entries Expo needs,
+// then add the monorepo root so workspace packages resolve correctly.
+config.watchFolders = [
+  ...(config.watchFolders ?? []),
+  monorepoRoot,
+];
 
 // Look for modules in both the app's node_modules and the root node_modules
 config.resolver.nodeModulesPaths = [
@@ -16,8 +20,16 @@ config.resolver.nodeModulesPaths = [
   path.resolve(monorepoRoot, "node_modules"),
 ];
 
-// pnpm uses symlinks — enable so Metro follows them into the virtual store
-config.resolver.unstable_enableSymlinks = true;
+// Polyfill the Node.js `buffer` module for packages like react-native-svg that
+// import it directly (not available in Metro/RN bundler by default).
+config.resolver.extraNodeModules = {
+  ...config.resolver.extraNodeModules,
+  buffer: require.resolve("buffer/"),
+};
+
+// NOTE: unstable_enableSymlinks is intentionally NOT set here.
+// Setting it to `true` causes an expo doctor mismatch; nodeModulesPaths handles
+// pnpm symlink resolution correctly without it.
 
 // THE actual fix for "Component auth has not been registered yet":
 // Modern Firebase package.json has an `exports` field. When `exports` is
