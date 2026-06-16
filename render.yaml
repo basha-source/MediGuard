@@ -19,9 +19,12 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      # The only real secret you must enter in the Render UI:
       - key: GEMINI_API_KEY
         sync: false
+      # Placeholders — not used by AI/OCR/barcode routes; env validation just
+      # requires them to be non-empty. Replace later if you wire up Maps / FCM.
       - key: GOOGLE_MAPS_API_KEY
-        sync: false
+        value: "placeholder"
       - key: FIREBASE_SERVICE_ACCOUNT_KEY
-        sync: false
+        value: "placeholder"
