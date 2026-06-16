@@ -17,7 +17,7 @@
         "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "mediguard-c823b.firebasestorage.app",
         "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "63659247526",
         "EXPO_PUBLIC_FIREBASE_APP_ID": "1:63659247526:web:c5c9efc886d5c683ba7167",
-        "EXPO_PUBLIC_BACKEND_URL": "http://10.47.71.229:4000"
+        "EXPO_PUBLIC_BACKEND_URL": "https://mediguard-api-75nv.onrender.com"
       }
     },
     "production": {
