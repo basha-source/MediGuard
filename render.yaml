@@ -1,0 +1,27 @@
+# Render Blueprint for the MediGuard backend API.
+# Deploy: Render Dashboard → New → Blueprint → connect the GitHub repo → apply.
+# The three secret values below are marked `sync: false`, so Render prompts for
+# them in the UI instead of reading them from the repo (keeps secrets out of git).
+services:
+  - type: web
+    name: mediguard-api
+    runtime: node
+    region: singapore           # closest free region to India
+    plan: free
+    branch: main
+    rootDir: .                  # monorepo root, so pnpm workspace install works
+    # corepack activates the pnpm version pinned in the root package.json.
+    # --prod=false guarantees devDeps (esbuild) install so the bundle can build.
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm --filter @mediguard/backend build
+    startCommand: node apps/backend/dist/index.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_KEY
+        sync: false

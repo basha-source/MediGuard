@@ -1,8 +1,17 @@
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import { doc, updateDoc, collection, addDoc } from "firebase/firestore";
 import { getDb } from "@mediguard/firebase";
 import { FIRESTORE } from "@mediguard/shared";
+
+const PROJECT_ID =
+  (Constants.expoConfig?.extra?.eas as { projectId?: string } | undefined)?.projectId ?? "";
+
+// Android notification channels. On Android 8+ every notification MUST belong to
+// a channel or it is silently dropped / shown without sound or heads-up.
+const CHANNEL_DEFAULT = "default";
+const CHANNEL_DOSE    = "dose-reminders";
 
 // In Expo Go SDK 53+, importing expo-notifications itself crashes because the
 // module calls addPushTokenListener during init. So we only require it outside
@@ -15,18 +24,44 @@ if (!IS_EXPO_GO) {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     Notifications = require("expo-notifications");
+    // SDK 55: shouldShowAlert is deprecated — shouldShowBanner + shouldShowList
+    // are what actually control whether a notification appears while the app is
+    // in the FOREGROUND. Omitting them means in-app notifications never show.
     Notifications!.setNotificationHandler({
       handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge:  true,
+        shouldShowBanner: true,
+        shouldShowList:   true,
+        shouldPlaySound:  true,
+        shouldSetBadge:   true,
       }),
     });
     // Register action categories so "Mark as Taken" button appears on dose alerts
     setupNotificationCategories().catch(() => {});
+    // Create Android channels up front so scheduled/push notifications can surface.
+    setupAndroidChannels().catch(() => {});
   } catch {
     Notifications = null;
   }
+}
+
+export async function setupAndroidChannels(): Promise<void> {
+  if (!Notifications || Platform.OS !== "android") return;
+  try {
+    await Notifications.setNotificationChannelAsync(CHANNEL_DEFAULT, {
+      name:             "General",
+      importance:       Notifications.AndroidImportance.HIGH,
+      sound:            "default",
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor:       "#2E7D32",
+    });
+    await Notifications.setNotificationChannelAsync(CHANNEL_DOSE, {
+      name:             "Dose Reminders",
+      importance:       Notifications.AndroidImportance.MAX,
+      sound:            "default",
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor:       "#2E7D32",
+    });
+  } catch { /* silently skip */ }
 }
 
 export async function setupNotificationCategories(): Promise<void> {
@@ -47,7 +82,7 @@ export async function registerForPushNotifications() {
   try {
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== "granted") return null;
-    const token = await Notifications.getExpoPushTokenAsync();
+    const token = await Notifications.getExpoPushTokenAsync(PROJECT_ID ? { projectId: PROJECT_ID } : undefined);
     return token.data;
   } catch {
     return null;
@@ -75,9 +110,10 @@ export async function scheduleDoseReminder(
         categoryIdentifier: "DOSE_ACTIONS",
       },
       trigger: {
-        hour:    scheduledTime.getHours(),
-        minute:  scheduledTime.getMinutes(),
-        repeats: true,
+        type:      Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour:      scheduledTime.getHours(),
+        minute:    scheduledTime.getMinutes(),
+        channelId: CHANNEL_DOSE,
       },
     });
   } catch { /* silently skip */ }
@@ -93,7 +129,11 @@ export async function scheduleExpiryAlert(medicineName: string, daysLeft: number
         sound: true,
         data:  { type: "expiry", screen: "ExpiryAlerts" },
       },
-      trigger: { seconds: 60 },
+      trigger: {
+        type:      Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds:   60,
+        channelId: CHANNEL_DEFAULT,
+      },
     });
   } catch { /* silently skip */ }
 }
@@ -117,7 +157,11 @@ export async function scheduleSnoozeReminder(medicineName: string, seconds = 180
         data:  { type: "dose", screen: "MissedDose" },
         categoryIdentifier: "DOSE_ACTIONS",
       },
-      trigger: { seconds },
+      trigger: {
+        type:      Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds,
+        channelId: CHANNEL_DOSE,
+      },
     });
   } catch { /* silently skip */ }
 }
@@ -132,7 +176,11 @@ export async function scheduleLowStockAlert(medicineName: string) {
         sound: true,
         data:  { type: "refill", screen: "ExpiryAlerts" },
       },
-      trigger: { seconds: 5 },
+      trigger: {
+        type:      Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds:   5,
+        channelId: CHANNEL_DEFAULT,
+      },
     });
   } catch { /* silently skip */ }
 }
@@ -219,7 +267,12 @@ export async function scheduleDailyWellnessReminder(hour: number, minute: number
         sound: true,
         data:  { type: "wellness", screen: "DailyLog" },
       },
-      trigger: { hour, minute, repeats: true },
+      trigger: {
+        type:      Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour,
+        minute,
+        channelId: CHANNEL_DEFAULT,
+      },
     });
     const hh = hour.toString().padStart(2, "0");
     const mm = minute.toString().padStart(2, "0");

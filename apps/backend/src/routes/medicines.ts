@@ -88,7 +88,8 @@ Make your best guess for category based on the packaging. Never return null for 
     prompt = `Read this prescription image and list all medicines. Return ONLY valid JSON with no markdown: {"medicines": [{"name": "...", "dosage": "...", "category": "tablet|capsule|liquid|injection|other"}]}. Return empty array if nothing detected.`;
   }
 
-  const MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-8b", "gemini-1.5-flash"];
+  // gemini-2.0-flash / 1.5-* removed: 429 (free-tier quota 0) or 404 (retired).
+  const MODELS = ["gemini-2.5-flash", "gemini-flash-latest"];
   const payload = {
     contents: [{
       parts: [

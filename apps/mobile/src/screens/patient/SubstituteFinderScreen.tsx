@@ -6,7 +6,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@mediguard/shared";
-import { ENV } from "@/config/env";
+import { findSubstitutes } from "@/services/openFDA";
 
 type SubResult = {
   brandName:    string;
@@ -28,10 +28,7 @@ export function SubstituteFinderScreen() {
     setLoading(true);
     setSearched(true);
     try {
-      const res = await fetch(
-        `${ENV.BACKEND_URL}/api/interactions/substitutes?ingredient=${encodeURIComponent(q)}`
-      );
-      const data = await res.json();
+      const data = await findSubstitutes(q);
       const items: SubResult[] = (data.results ?? []).map((r: any) => ({
         brandName:    r.openfda?.brand_name?.[0]       ?? "Unknown Brand",
         genericName:  r.openfda?.generic_name?.[0]     ?? q,
@@ -40,7 +37,7 @@ export function SubstituteFinderScreen() {
       }));
       setResults(items);
     } catch {
-      Alert.alert("Error", "Could not fetch substitutes. Check backend connection.");
+      Alert.alert("Error", "Could not fetch substitutes. Check your internet connection.");
     } finally {
       setLoading(false);
     }

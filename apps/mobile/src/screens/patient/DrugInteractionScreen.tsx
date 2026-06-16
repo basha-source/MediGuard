@@ -12,7 +12,7 @@ import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@mediguard/shared";
 import { useMedicineStore } from "@/store/medicineStore";
-import { ENV } from "@/config/env";
+import { checkDrugInteraction } from "@/services/openFDA";
 
 type ResultData = {
   level: "safe" | "mild" | "serious";
@@ -76,10 +76,7 @@ export function DrugInteractionScreen() {
     setResult(null);
     setError(null);
     try {
-      const res = await fetch(
-        `${ENV.BACKEND_URL}/api/interactions/check?drug1=${encodeURIComponent(drug1)}&drug2=${encodeURIComponent(drug2)}`
-      );
-      const data = await res.json();
+      const data = await checkDrugInteraction(drug1, drug2);
       const total = data?.meta?.results?.total ?? data?.results?.length ?? 0;
       const results = data?.results ?? [];
       const hasSerious = results.some((r: any) => r.serious === "1");
@@ -93,7 +90,7 @@ export function DrugInteractionScreen() {
         reactions,
       });
     } catch {
-      setError("Could not check interaction. Make sure backend is running.");
+      setError("Could not check interaction. Check your internet connection and try again.");
     } finally {
       setLoading(false);
     }

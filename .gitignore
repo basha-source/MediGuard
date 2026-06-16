@@ -36,6 +36,12 @@ Thumbs.db
 .vscode/
 .idea/
 
+# ── Local tooling / agent scratch (never commit) ─────────
+.claude/
+.qodo/
+.tools/
+generate-icons.ps1
+
 # ── Expo / React Native ───────────────────────────────────
 ios/
 android/
