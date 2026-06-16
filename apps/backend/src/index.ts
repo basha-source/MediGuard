@@ -21,6 +21,12 @@ app.use("/api/interactions",  interactionRoutes);
 app.use("/api/ai",            aiRoutes);
 app.use("/api/notifications", notificationRoutes);
 
+app.get("/", (_req, res) => res.json({
+  status: "ok",
+  app: "MediGuard API",
+  message: "API is running. See /health and /api/* endpoints.",
+}));
+
 app.get("/health", (_req, res) => res.json({ status: "ok", app: "MediGuard API" }));
 
 app.listen(ENV.PORT, () => console.log(`MediGuard API running on port ${ENV.PORT}`));
